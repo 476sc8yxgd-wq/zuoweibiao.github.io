@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>座位号替换为姓名工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        body {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 2rem;
+        }
+        .section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+        h3 {
+            color: #4299e1;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+        .file-upload {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        input[type="file"] {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .file-name {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .config {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .config-item {
+            flex: 1;
+            min-width: 200px;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.3rem;
+            color: #333;
+            font-size: 0.9rem;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin: 2rem 0;
+        }
+        button {
+            padding: 0.8rem 2rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        #replaceBtn {
+            background: #4299e1;
+            color: white;
+        }
+        #replaceBtn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        #downloadBtn {
+            background: #10b981;
+            color: white;
+            display: none;
+        }
+        #status {
+            text-align: center;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+        .success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .loading {
+            background: #e0f2fe;
+            color: #083344;
+        }
+        .note {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        .note ul {
+            margin-left: 1.5rem;
+            margin-top: 0.5rem;
+            line-height: 1.6;
+        }
+        .library-tip {
+            text-align: center;
+            color: #dc2626;
+            margin: 1rem 0;
+            font-weight: bold;
+            display: none;
+        }
+    </style>
+    <!-- 更换为官方稳定CDN（优先加载） -->
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>座位号替换为姓名工具</h1>
+
+        <!-- 库加载失败提示 -->
+        <div class="library-tip" id="libraryTip">❌ 核心库加载失败，请检查网络或使用本地引入方式！</div>
+
+        <!-- 状态提示区域 -->
+        <div id="status"></div>
+
+        <!-- 第一步：上传文件 -->
+        <div class="section">
+            <h3>1. 上传文件</h3>
+            <div class="file-upload">
+                <input type="file" id="mappingFile" accept=".xlsx,.xls,.csv" title="选择姓名-座位号映射表" disabled>
+                <span class="file-name" id="mappingFileName">未选择文件（需包含「座位号」和「姓名」列）</span>
+            </div>
+            <div class="file-upload">
+                <input type="file" id="seatFile" accept=".xlsx,.xls,.csv" title="选择纯座位号表" disabled>
+                <span class="file-name" id="seatFileName">未选择文件（需包含座位号，格式与映射表一致）</span>
+            </div>
+        </div>
+
+        <!-- 第二步：配置参数 -->
+        <div class="section">
+            <h3>2. 配置参数（默认无需修改，与Excel列名一致即可）</h3>
+            <div class="config">
+                <div class="config-item">
+                    <label for="seatCol">映射表中「座位号」列名</label>
+                    <input type="text" id="seatCol" value="座位号" placeholder="例如：座位号、座位编号" disabled>
+                </div>
+                <div class="config-item">
+                    <label for="nameCol">映射表中「姓名」列名</label>
+                    <input type="text" id="nameCol" value="姓名" placeholder="例如：姓名、学生姓名" disabled>
+                </div>
+                <div class="config-item">
+                    <label for="noMatchText">无匹配姓名时显示</label>
+                    <input type="text" id="noMatchText" value="无匹配" placeholder="例如：无匹配、空座位" disabled>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="btn-group">
+            <button id="replaceBtn" disabled>开始替换</button>
+            <button id="downloadBtn" disabled>下载结果文件</button>
+        </div>
+
+        <!-- 注意事项 -->
+        <div class="note">
+            <strong>使用说明：</strong>
+            <ul>
+                <li>支持文件格式：.xlsx（推荐）、.xls、.csv</li>
+                <li>映射表需包含两列：列名需与配置项一致（默认「座位号」「姓名」）</li>
+                <li>座位表中的座位号格式需与映射表完全一致（如映射表是「A1-1」，座位表不能多空格）</li>
+                <li>自动按座位号后缀数字排序（如 A1-2 排在 A1-10 前）</li>
+                <li>文件处理全程在本地浏览器完成，不会上传到服务器，安全隐私</li>
+            </ul>
+            <strong style="margin-top: 1rem; display: block;">若出现「库加载失败」：</strong>
+            <ul>
+                <li>1. 检查网络是否正常，刷新页面重试</li>
+                <li>2. 手动下载 <a href="https://unpkg.com/xlsx/dist/xlsx.full.min.js" target="_blank">xlsx.full.min.js</a>，与本HTML文件放在同一文件夹</li>
+                <li>3. 将头部CDN脚本替换为：&lt;script src="xlsx.full.min.js"&gt;&lt;/script&gt;</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 先检测XLSX是否加载成功
+        window.onload = function() {
+            const libraryTip = document.getElementById('libraryTip');
+            const mappingFile = document.getElementById('mappingFile');
+            const seatFile = document.getElementById('seatFile');
+            const seatCol = document.getElementById('seatCol');
+            const nameCol = document.getElementById('nameCol');
+            const noMatchText = document.getElementById('noMatchText');
+
+            if (typeof XLSX === 'undefined') {
+                // 库加载失败，显示提示，禁用功能
+                libraryTip.style.display = 'block';
+                showStatus('❌ 核心库加载失败，无法使用功能', 'error');
+            } else {
+                // 库加载成功，启用功能
+                mappingFile.disabled = false;
+                seatFile.disabled = false;
+                seatCol.disabled = false;
+                nameCol.disabled = false;
+                noMatchText.disabled = false;
+                showStatus('✅ 核心库加载成功，可上传文件', 'success');
+            }
+        };
+
+        // 全局变量：存储解析后的Excel数据和生成的工作簿
+        let mappingData = null; // 映射表数据（JSON数组）
+        let seatWorkbook = null; // 座位表工作簿（用于生成新文件）
+        let resultWorkbook = null; // 结果工作簿（替换后）
+
+        // DOM元素
+        const mappingFile = document.getElementById('mappingFile');
+        const seatFile = document.getElementById('seatFile');
+        const mappingFileName = document.getElementById('mappingFileName');
+        const seatFileName = document.getElementById('seatFileName');
+        const seatCol = document.getElementById('seatCol');
+        const nameCol = document.getElementById('nameCol');
+        const noMatchText = document.getElementById('noMatchText');
+        const replaceBtn = document.getElementById('replaceBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const status = document.getElementById('status');
+
+        // 监听文件上传（映射表）
+        mappingFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                mappingFileName.textContent = '未选择文件（需包含「座位号」和「姓名」列）';
+                mappingData = null;
+                checkBtnStatus();
+                return;
+            }
+            mappingFileName.textContent = `已选择：${file.name}`;
+            // 解析Excel文件
+            parseExcelFile(file, (data) => {
+                mappingData = data;
+                showStatus(`✅ 映射表解析成功，共 ${data.length} 行数据`, 'success');
+                checkBtnStatus();
+            }, (err) => {
+                showStatus(`❌ 映射表解析失败：${err}`, 'error');
+                mappingData = null;
+                checkBtnStatus();
+            });
+        });
+
+        // 监听文件上传（座位表）
+        seatFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                seatFileName.textContent = '未选择文件（需包含座位号，格式与映射表一致）';
+                seatWorkbook = null;
+                checkBtnStatus();
+                return;
+            }
+            seatFileName.textContent = `已选择：${file.name}`;
+            // 解析Excel文件（保留工作簿对象，用于生成新文件）
+            parseExcelFileWithWorkbook(file, (workbook, data) => {
+                seatWorkbook = workbook;
+                showStatus(`✅ 座位表解析成功，共 ${data.length} 行数据`, 'success');
+                checkBtnStatus();
+            }, (err) => {
+                showStatus(`❌ 座位表解析失败：${err}`, 'error');
+                seatWorkbook = null;
+                checkBtnStatus();
+            });
+        });
+
+        // 开始替换按钮点击事件
+        replaceBtn.addEventListener('click', () => {
+            if (!mappingData || !seatWorkbook) {
+                showStatus('❌ 请先上传并解析两个文件', 'error');
+                return;
+            }
+
+            const seatColName = seatCol.value.trim();
+            const nameColName = nameCol.value.trim();
+            const noMatch = noMatchText.value.trim() || '无匹配';
+
+            // 校验列名是否存在
+            if (!mappingData[0] || !mappingData[0].hasOwnProperty(seatColName)) {
+                showStatus(`❌ 映射表缺少列：${seatColName}`, 'error');
+                return;
+            }
+            if (!mappingData[0].hasOwnProperty(nameColName)) {
+                showStatus(`❌ 映射表缺少列：${nameColName}`, 'error');
+                return;
+            }
+
+            showStatus('🔄 正在替换座位号为姓名...', 'loading');
+
+            try {
+                // 1. 构建座位号-姓名映射字典（去重，保留第一个）
+                const seatNameMap = new Map();
+                mappingData.forEach(row => {
+                    const seat = String(row[seatColName]).trim();
+                    const name = String(row[nameColName]).trim();
+                    if (seat && name && !seatNameMap.has(seat)) {
+                        seatNameMap.set(seat, name);
+                    }
+                });
+                showStatus(`✅ 构建映射关系成功，共 ${seatNameMap.size} 个有效座位号`, 'loading');
+
+                // 2. 处理座位表（替换座位号+排序）
+                const sheetName = seatWorkbook.SheetNames[0]; // 取第一个工作表
+                const seatSheet = seatWorkbook.Sheets[sheetName];
+                // 转换为JSON数组（便于处理）
+                const seatData = XLSX.utils.sheet_to_json(seatSheet);
+                // 替换座位号
+                const replacedData = replaceSeatNumbers(seatData, seatNameMap, noMatch);
+                // 排序座位列（按后缀数字升序）
+                const sortedData = sortSeatColumns(replacedData);
+                // 转换回工作表
+                const resultSheet = XLSX.utils.json_to_sheet(sortedData);
+
+                // 3. 生成新的工作簿
+                resultWorkbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(resultWorkbook, resultSheet, sheetName);
+
+                showStatus(`🎉 替换完成！共匹配 ${seatNameMap.size} 个座位号`, 'success');
+                downloadBtn.disabled = false;
+                downloadBtn.style.display = 'inline-block';
+            } catch (err) {
+                showStatus(`❌ 替换失败：${err.message}`, 'error');
+                downloadBtn.disabled = true;
+                downloadBtn.style.display = 'none';
+            }
+        });
+
+        // 下载结果文件
+        downloadBtn.addEventListener('click', () => {
+            if (!resultWorkbook) {
+                showStatus('❌ 无结果文件可下载', 'error');
+                return;
+            }
+            // 生成Excel文件并下载
+            const fileName = '座位表_替换姓名后.xlsx';
+            XLSX.writeFile(resultWorkbook, fileName);
+            showStatus(`✅ 已下载：${fileName}`, 'success');
+        });
+
+        /**
+         * 解析Excel文件（仅返回数据）
+         * @param file 上传的文件
+         * @param success 成功回调（data: JSON数组）
+         * @param error 失败回调（err: 错误信息）
+         */
+        function parseExcelFile(file, success, error) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(sheet);
+                    success(jsonData);
+                } catch (err) {
+                    error(err.message);
+                }
+            };
+            reader.onerror = () => {
+                error('文件读取失败，请检查文件是否损坏');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        /**
+         * 解析Excel文件（返回工作簿和数据）
+         * @param file 上传的文件
+         * @param success 成功回调（workbook: 工作簿, data: JSON数组）
+         * @param error 失败回调（err: 错误信息）
+         */
+        function parseExcelFileWithWorkbook(file, success, error) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(sheet);
+                    success(workbook, jsonData);
+                } catch (err) {
+                    error(err.message);
+                }
+            };
+            reader.onerror = () => {
+                error('文件读取失败，请检查文件是否损坏');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        /**
+         * 替换数据中的座位号为姓名
+         * @param data 座位表数据（JSON数组）
+         * @param seatNameMap 座位号-姓名映射
+         * @param noMatch 无匹配时显示的文本
+         * @returns 替换后的数据
+         */
+        function replaceSeatNumbers(data, seatNameMap, noMatch) {
+            return data.map(row => {
+                const newRow = { ...row };
+                // 遍历每一列，替换座位号
+                Object.keys(newRow).forEach(key => {
+                    const value = String(newRow[key]).trim();
+                    // 跳过空值、过道等特殊标识
+                    if (!value || value.includes('过道')) return;
+                    // 匹配映射表，替换为姓名
+                    if (seatNameMap.has(value)) {
+                        newRow[key] = seatNameMap.get(value);
+                    } else {
+                        newRow[key] = noMatch;
+                    }
+                });
+                return newRow;
+            });
+        }
+
+        /**
+         * 按座位号后缀数字排序列（如 A1-1→A1-2→A1-10）
+         * @param data 替换后的数据（JSON数组）
+         * @returns 排序后的数据
+         */
+        function sortSeatColumns(data) {
+            if (!data.length) return data;
+
+            // 提取表头（列名）
+            const headers = Object.keys(data[0]);
+            // 正则：匹配座位号后缀数字（如 A1-10 提取 10）
+            const seatPattern = /[A-Za-z]+\d+\-(\d+)/;
+
+            // 构建列名与排序权重的映射
+            const headerWeight = new Map();
+            headers.forEach(header => {
+                // 取第一行数据的该列值，判断是否为座位列
+                const firstValue = String(data[0][header]).trim();
+                const match = seatPattern.exec(firstValue);
+                if (match) {
+                    headerWeight.set(header, parseInt(match[1]));
+                } else {
+                    headerWeight.set(header, 999); // 非座位列排最后
+                }
+            });
+
+            // 按权重排序表头
+            const sortedHeaders = [...headers].sort((a, b) => {
+                return headerWeight.get(a) - headerWeight.get(b);
+            });
+
+            // 按排序后的表头重新组织数据
+            return data.map(row => {
+                const sortedRow = {};
+                sortedHeaders.forEach(header => {
+                    sortedRow[header] = row[header];
+                });
+                return sortedRow;
+            });
+        }
+
+        /**
+         * 显示状态提示
+         * @param text 提示文本
+         * @param type 类型：success/error/loading
+         */
+        function showStatus(text, type) {
+            status.textContent = text;
+            status.className = type;
+            // 3秒后清除非错误状态
+            if (type !== 'error') {
+                setTimeout(() => {
+                    if (status.className === type) {
+                        status.textContent = '';
+                        status.className = '';
+                    }
+                }, 3000);
+            }
+        }
+
+        /**
+         * 检查开始替换按钮是否可点击
+         */
+        function checkBtnStatus() {
+            replaceBtn.disabled = !(mappingData && seatWorkbook && typeof XLSX !== 'undefined');
+        }
+    </script>
+</body>
+</html>
